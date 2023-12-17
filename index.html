@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pl">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Graf słów</title>
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+        <script src="https://unpkg.com/string-similarity/umd/string-similarity.min.js"></script>
+        <script src="https://d3js.org/d3.v5.min.js"></script>
+        <style>
+            body { margin: 0; padding: 0; border: 0; width: 100%; height: 100vh; overflow: hidden; }
+            svg {width: 100%; height: 100%; border: 0; }
+            input {
+                position: absolute;
+                bottom: 8em;
+                right: 8em;
+                width: 32em;
+            }
+        </style>
+    </head>
+    <body>
+
+        <input type="text" id="words" name="words" value="hej, hello, witaj przyjacielu" oninput="drawGraph()">
+        <svg id="graph"></svg>
+
+        <script>
+            function drawGraph() {
+
+                d3.select("#graph").selectAll("*").remove();
+
+                const texts = document.getElementById('words').value.split(',');
+
+                const nodes = texts.map((text, i) => ({id: i, label: text}));
+                const links = [];
+                for (let i = 0; i < texts.length; i++) {
+                    for (let j = i + 1; j < texts.length; j++) {
+                    
+                        const begins = [
+                            texts[i].substring(0, Math.ceil(.5*texts[i].length)), 
+                            texts[j].substring(0, Math.ceil(.5*texts[j].length))
+                        ];
+                        
+                        const ends = [
+                            texts[i].substring(Math.floor(.5*texts[i].length)), 
+                            texts[j].substring(Math.floor(.5*texts[j].length))
+                        ];
+
+                        const before = stringSimilarity.compareTwoStrings(begins[0], begins[1]);
+                        const afterwards = stringSimilarity.compareTwoStrings(ends[0], ends[1]);
+
+
+                        links.push({source: i, target: j, value: (4 * before + afterwards)/5});
+                    }
+                }
+
+                const svg = d3.select("#graph");
+                const width = +svg.node().getBoundingClientRect().width;
+                const height = +svg.node().getBoundingClientRect().height;
+
+                const simulation = d3.forceSimulation(nodes)
+                    .force("link", d3.forceLink(links).id(d => d.id).strength(d => d.value))
+                    .force("charge", d3.forceManyBody().strength(-32*nodes.length))
+                    .force("center", d3.forceCenter(width / 2, height / 2))
+                    .alphaDecay(0.05);
+
+                const layer = svg.append("g");
+
+                const node = layer.append("g")
+                    .attr("class", "nodes")
+                    .selectAll("g")
+                    .data(nodes)
+                    .enter().append("g");
+
+                node.append("title")
+                    .text(d => d.label);
+
+                const circles = node.append("circle")
+                    .attr("r", 5)
+                    .attr("fill", "#69b3a2");
+
+                const labels = node.append("text")
+                    .text(function(d) { return d.label; })
+                    .style("font-size", function(d) { return (50/Math.sqrt(d.label.length)) + "px"; })
+                    .attr('x', 6)
+                    .attr('y', 3);
+
+                const zoom = d3.zoom()
+                    .on("zoom", zoomed);
+
+                svg.call(zoom);
+
+                function zoomed() {
+                    layer.attr("transform", d3.event.transform);
+                }
+
+                const drag = d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended);
+
+                circles.call(drag);
+
+                function dragstarted(d) {
+                    if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+
+                function dragged(d) {
+                    d.fx = d3.event.x;
+                    d.fy = d3.event.y;
+                }
+
+                function dragended(d) {
+                    if (!d3.event.active) simulation.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                }
+                
+                simulation.on("tick", () => {
+
+                    node.attr("transform", d => `translate(${d.x}, ${d.y})`)
+                });
+            }
+
+            drawGraph();
+        </script>
+
+    </body>
+</html>
